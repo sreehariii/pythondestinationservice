@@ -7,48 +7,46 @@ from cfenv import AppEnv
 import requests
 import base64
 
-
-
-
 app = Flask(__name__)
 
-
 ############### Step 1: Read the environment variables ###############
+def getdestinationInfo(): 
+    env = AppEnv()
+    uaa_service = env.get_service(name='cf-admincockpit-xsuaa')
+    dest_service = env.get_service(name='cf-admincockpit-destination')
+    sUaaCredentials = base64.b64encode("{}:{}".format(dest_service.credentials["clientid"] , dest_service.credentials["clientsecret"]).encode())
+    sDestinationName = 'sapglobaltrustlist'
 
-env = AppEnv()
-uaa_service = env.get_service(name='cf-admincockpit-xsuaa')
-dest_service = env.get_service(name='cf-admincockpit-destination')
-#sUaaCredentials = dest_service.credentials["clientid"] + ':' + dest_service.credentials["clientsecret"]
+    #### Step 2: Request a JWT token to access the destination service ###
+    headers = {"Content-Type" : "application/x-www-form-urlencoded", "Authorization" : "Basic {}".format(sUaaCredentials.decode('utf-8'))} 
+    form = [('client_id', dest_service.credentials["clientid"] ), ('grant_type', 'client_credentials')]
+    r = requests.post(uaa_service.credentials["url"] + '/oauth/token', data=form, headers=headers)
 
-sUaaCredentials = base64.b64encode("{}:{}".format(dest_service.credentials["clientid"] , dest_service.credentials["clientsecret"]).encode())
-sDestinationName = 'sapglobaltrustlist'
+    ####### Step 3: Search your destination in the destination service #######
+    token = r.json()["access_token"]
+    headers= { 'Authorization': 'Bearer ' + token }
+    r = requests.get(dest_service.credentials["uri"] + '/destination-configuration/v1/destinations/'+sDestinationName, headers=headers)
 
+    ############### Step 4: Access the destination securely ###############
+    destination = r.json()
+    #print(destination)
+    token = destination["authTokens"][0]
 
-#### Step 2: Request a JWT token to access the destination service ###
+    githubUrl = destination["destinationConfiguration"]["URL"]
+    githubUsername = destination["destinationConfiguration"]["User"]
+    githubPassword = destination["destinationConfiguration"]["Password"]
+    return githubPassword, githubUsername, githubUrl
+    
+def getPEMfile():
+    githubPassword, githubUsername , githubUrl = getdestinationInfo()
+    url = githubUrl
+    headers = {
+    'Authorization': 'token {}'.format(githubPassword)
+    }
+    response = requests.request("GET", url, headers=headers)
+    print(response.text)
 
-headers = {"Content-Type" : "application/x-www-form-urlencoded", "Authorization" : "Basic {}".format(sUaaCredentials.decode('utf-8'))} 
-form = [('client_id', dest_service.credentials["clientid"] ), ('grant_type', 'client_credentials')]
-r = requests.post(uaa_service.credentials["url"] + '/oauth/token', data=form, headers=headers)
-
-
-####### Step 3: Search your destination in the destination service #######
-
-token = r.json()["access_token"]
-headers= { 'Authorization': 'Bearer ' + token }
-r = requests.get(dest_service.credentials["uri"] + '/destination-configuration/v1/destinations/'+sDestinationName, headers=headers)
-
-############### Step 4: Access the destination securely ###############
-
-
-destination = r.json()
-print(destination)
-token = destination["authTokens"][0]
-
-githubUrl = destination["destinationConfiguration"]["URL"]
-githubUsername = destination["destinationConfiguration"]["User"]
-githubPassword = destination["destinationConfiguration"]["Password"]
-
-print(githubPassword, githubPassword, githubUrl)
+getPEMfile()
 
 cf_port = os.getenv("PORT")
 if __name__ == '__main__':
