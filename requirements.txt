@@ -1,0 +1,6 @@
+Flask
+dnspython
+cfenv
+requests
+wget
+flask_pymongo

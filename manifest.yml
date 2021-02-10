@@ -1,0 +1,12 @@
+---
+applications:
+- memory: 4096MB
+  disk_quota: 256MB
+  services: 
+  - cf-admincockpit-destination
+  - cf-admincockpit-xsuaa
+  routes:
+  - route: testingdestination.cfapps.sap.hana.ondemand.com/destinationservice
+
+
+
